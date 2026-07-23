@@ -1,4 +1,4 @@
-# Agent Terminal (v0)
+# Agents CLI
 
 Cliente Android nativo (Kotlin) que actúa como **terminal para CLIs de agentes
 de código** — Claude Code, Codex CLI, Gemini CLI — que corren dentro de
