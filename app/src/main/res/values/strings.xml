@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">Agents CLI</string>
+
+    <!-- Textos base de la pantalla de estado -->
+    <string name="error_title">Terminal no iniciada</string>
+    <string name="error_instructions">Preparando el motor Linux embebido…</string>
+    <string name="btn_bootstrap">Instalar entorno</string>
+    <string name="btn_retry">Reintentar</string>
+
+    <!-- Instalación del entorno (M2) -->
+    <string name="btn_install">Instalar entorno (Node, ttyd)</string>
+    <string name="btn_start_terminal">Arrancar terminal</string>
+    <string name="install_prompt_title">Instalar el entorno</string>
+    <string name="install_prompt_msg">La app necesita descargar Node.js y ttyd dentro de su entorno Linux (una sola vez, requiere conexión).\n\nPulsa \"Instalar entorno\" para empezar. Verás el progreso aquí.</string>
+    <string name="install_title">Preparando la terminal…</string>
+    <string name="install_extracting">Primera apertura: extrayendo el entorno Linux incluido en la app (~1 min). No cierres la app.</string>
+    <string name="install_failed_title">La preparación falló</string>
+
+    <!-- Conexión con ttyd (M3) -->
+    <string name="conn_error_title">No se pudo conectar con la terminal</string>
+    <string name="conn_error_msg">El servidor ttyd no respondió en %1$s.\n\nPuede tardar unos segundos en arrancar. Pulsa \"Reintentar\".</string>
+
+    <!-- Modo Proyectos (F4) -->
+    <string name="projects_title">Proyectos</string>
+    <string name="projects_empty">Aún no tienes proyectos.\n\nPulsa \"Abrir carpeta\" para elegir una carpeta y empezar.</string>
+    <string name="projects_add">Abrir carpeta…</string>
+    <string name="back_to_projects">← Proyectos</string>
+</resources>

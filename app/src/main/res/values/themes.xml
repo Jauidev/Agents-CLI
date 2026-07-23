@@ -1,0 +1,39 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      Tema base Material 3, sin ActionBar (usamos WebView a pantalla completa).
+      Dark-first: forzamos la paleta propia en claro y oscuro para tener identidad
+      consistente (la terminal siempre es oscura).
+    -->
+    <style name="Theme.AgentTerminal" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Marca -->
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorOnPrimary">@color/bg_crust</item>
+        <item name="colorSecondary">@color/accent_blue</item>
+        <item name="colorOnSecondary">@color/bg_crust</item>
+
+        <!-- Superficies / fondos -->
+        <item name="android:colorBackground">@color/bg_base</item>
+        <item name="colorSurface">@color/bg_mantle</item>
+        <item name="colorSurfaceVariant">@color/surface</item>
+        <item name="colorOnBackground">@color/text</item>
+        <item name="colorOnSurface">@color/text</item>
+        <item name="colorOnSurfaceVariant">@color/text_dim</item>
+        <item name="colorOutline">@color/overlay</item>
+
+        <!-- Barras del sistema a juego -->
+        <item name="android:statusBarColor">@color/bg_crust</item>
+        <item name="android:navigationBarColor">@color/bg_crust</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+    </style>
+
+    <!-- Pastilla del item seleccionado en la barra inferior. -->
+    <style name="Nav.ActiveIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@color/surface</item>
+    </style>
+
+    <!-- Launch theme: logo de marca mientras arranca el proceso. Se cambia al
+         tema normal en MainActivity.onCreate (setTheme antes de super). -->
+    <style name="Theme.AgentTerminal.Splash" parent="Theme.AgentTerminal">
+        <item name="android:windowBackground">@drawable/splash_bg</item>
+    </style>
+</resources>

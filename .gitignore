@@ -1,0 +1,25 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+/app/build/
+
+# APKs / outputs (grandes; se distribuyen como GitHub Release, no en el repo)
+*.apk
+*.aab
+
+# Asset gigante: rootfs Debian pre-cocinado (~350 MB, supera el límite de
+# 100 MB/archivo de GitHub). Se genera offline (ver docs) o se distribuye aparte.
+# engine.tar (1.7 MB) SÍ se versiona.
+/app/src/main/assets/debian-rootfs.tarball
+
+# Capturas/artefactos de desarrollo sueltos
+/BUG*.jpg
+/features*.jpg
+/MEJORAS.jpg

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Los IDs coinciden con AgentSession.id vía un mapeo en MainActivity.
+  El orden refleja Sessions.all.
+-->
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/nav_claude"
+        android:icon="@drawable/ic_cli_claude"
+        android:title="Claude Code" />
+
+    <item
+        android:id="@+id/nav_codex"
+        android:icon="@drawable/ic_cli_codex"
+        android:title="Codex CLI" />
+
+    <item
+        android:id="@+id/nav_gemini"
+        android:icon="@drawable/ic_cli_gemini"
+        android:title="Gemini CLI" />
+
+</menu>

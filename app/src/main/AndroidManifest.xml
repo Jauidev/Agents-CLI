@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      INTERNET: el WebView carga http://127.0.0.1:PUERTO (ttyd que arranca la
+      propia app) y el primer arranque descarga node/ttyd/CLIs dentro del rootfs.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      Motor embebido (proot + rootfs): ttyd corre dentro de un ForegroundService
+      para sobrevivir en segundo plano; WAKE_LOCK evita que el sistema lo
+      congele durante sesiones largas.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!--
+      Acceso al almacenamiento compartido para que los CLIs trabajen sobre los
+      archivos del usuario. Con targetSdk 28 basta el permiso legacy (acceso
+      completo a /sdcard con rutas reales, sin scoped storage).
+    -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AgentTerminal"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:requestLegacyExternalStorage="true"
+        tools:targetApi="31">
+
+        <!--
+          usesCleartextTraffic=true: ttyd sirve HTTP plano en localhost.
+          Se restringe a 127.0.0.1 vía network_security_config para no abrir
+          cleartext a toda la red.
+        -->
+
+        <!-- Pantalla de entrada: lista de proyectos (Modo Proyectos, F4). -->
+        <activity
+            android:name=".ProjectsActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AgentTerminal.Splash"
+            android:configChanges="orientation|screenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Terminal de un proyecto (se abre desde ProjectsActivity). -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:parentActivityName=".ProjectsActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <!--
+          Servicio que mantiene vivo el motor Linux (proot + ttyd). En M0 es un
+          esqueleto: arranca en foreground con notificación. La ejecución real de
+          proot/ttyd se cablea en M1–M3.
+        -->
+        <service
+            android:name=".LinuxService"
+            android:exported="false" />
+    </application>
+
+</manifest>

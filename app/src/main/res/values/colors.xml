@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Paleta "editor de código" (dark-first), base tipo Catppuccin Mocha.
+  Toda la identidad visual de la app sale de aquí.
+-->
+<resources>
+    <!-- Fondos -->
+    <color name="bg_base">#1E1E2E</color>       <!-- fondo principal -->
+    <color name="bg_mantle">#181825</color>     <!-- barras / fondos más oscuros -->
+    <color name="bg_crust">#11111B</color>      <!-- statusbar / navbar -->
+    <color name="surface">#313244</color>       <!-- tarjetas, chips -->
+    <color name="surface_hi">#45475A</color>    <!-- estados hover/pressed -->
+    <color name="overlay">#6C7086</color>       <!-- bordes sutiles, iconos apagados -->
+
+    <!-- Texto -->
+    <color name="text">#CDD6F4</color>          <!-- texto principal -->
+    <color name="text_dim">#A6ADC8</color>      <!-- texto secundario -->
+    <color name="text_faint">#7F849C</color>    <!-- placeholders -->
+
+    <!-- Acentos -->
+    <color name="accent">#CBA6F7</color>        <!-- violeta: acento de marca -->
+    <color name="accent_green">#A6E3A1</color>
+    <color name="accent_blue">#89B4FA</color>
+    <color name="accent_peach">#FAB387</color>
+    <color name="accent_red">#F38BA8</color>
+
+    <!-- Colores por CLI (barra inferior + cabecera) -->
+    <color name="cli_claude">#FAB387</color>    <!-- durazno -->
+    <color name="cli_codex">#A6E3A1</color>     <!-- verde -->
+    <color name="cli_gemini">#89B4FA</color>    <!-- azul -->
+
+    <!-- Icono de launcher -->
+    <color name="ic_launcher_background">#1E1E2E</color>
+</resources>

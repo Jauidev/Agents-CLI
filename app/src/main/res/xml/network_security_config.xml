@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Permite tráfico HTTP en claro SOLO hacia localhost (donde vive ttyd).
+  El resto de la red sigue exigiendo TLS. Así no relajamos la seguridad
+  global de la app.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>
