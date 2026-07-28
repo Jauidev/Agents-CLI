@@ -155,11 +155,31 @@ object LinuxEngine {
             """
             #!/bin/sh
             # Generado por la app: reenvía la URL al navegador de Android.
+            # Se busca la URL entre TODOS los argumentos porque no todos los CLIs
+            # la pasan como ${'$'}1 (algunos anteponen flags).
+            for a in "${'$'}@"; do
+              case "${'$'}a" in
+                http://*|https://*) echo "${'$'}a" >> /tmp/.agent-open-url; exit 0 ;;
+              esac
+            done
             echo "${'$'}1" >> /tmp/.agent-open-url
             exit 0
             """.trimIndent() + "\n",
         )
         Os.chmod(xdgOpen.absolutePath, 0b111_101_101) // 0755
+
+        // Los CLIs no siempre llaman a `xdg-open`: el paquete npm `open` y varias
+        // librerías prueban primero otros nombres. Con todos apuntando al mismo
+        // script da igual cuál elijan.
+        listOf("open", "www-browser", "x-www-browser", "sensible-browser", "gnome-open")
+            .forEach { alias ->
+                val link = File(xdgOpen.parentFile, alias)
+                runCatching {
+                    link.delete()
+                    xdgOpen.copyTo(link, overwrite = true)
+                    Os.chmod(link.absolutePath, 0b111_101_101) // 0755
+                }.onFailure { Log.w(TAG, "alias $alias: ${it.message}") }
+            }
 
         // Config de tmux: ratón/scroll táctil, sin lag de Esc y barra de estado con
         // la lista de ventanas (E1). Con `mouse on`, TOCAR el nombre de una ventana

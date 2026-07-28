@@ -604,31 +604,87 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * El xdg-open falso del guest escribe URLs en rootfs/tmp/.agent-open-url.
-     * Aquí vigilamos ese fichero y abrimos el navegador de Android con la URL.
+     * Aquí las recogemos y abrimos el navegador de Android.
+     *
+     * Hay DOS caminos a propósito. El `FileObserver` (inotify) es el rápido, pero
+     * no se puede confiar solo en él: en algunos dispositivos no entrega nunca los
+     * eventos de este fichero —comprobado en el Poco X6 Pro, donde el login OAuth
+     * de los tres CLIs dejaba la URL en la cola sin que se abriera nada— y además
+     * hay ROMs que reportan `path` a null. El sondeo corto mientras la terminal
+     * está en pantalla es el que garantiza que la URL se abra.
      */
     private var urlObserver: FileObserver? = null
+    private val urlHandler = Handler(Looper.getMainLooper())
+    private val urlPoller = object : Runnable {
+        override fun run() {
+            drainOpenUrlQueue()
+            urlHandler.postDelayed(this, URL_POLL_MS)
+        }
+    }
+
+    private fun openUrlQueue(): File =
+        File(File(LinuxEngine.rootfsDir(this), "tmp").apply { mkdirs() }, OPEN_URL_FILE)
 
     @Suppress("DEPRECATION") // constructor (String) — el de File pide API 29
     private fun startUrlWatcher() {
-        if (urlObserver != null) return
-        val tmpDir = File(LinuxEngine.rootfsDir(this), "tmp").apply { mkdirs() }
-        val flagFile = File(tmpDir, ".agent-open-url")
-        urlObserver = object : FileObserver(
-            tmpDir.absolutePath,
-            CLOSE_WRITE or MODIFY or CREATE or MOVED_TO,
-        ) {
-            override fun onEvent(event: Int, path: String?) {
-                if (path != flagFile.name) return
-                val url = runCatching {
-                    flagFile.readText().lines().lastOrNull { it.isNotBlank() }?.trim()
-                }.getOrNull() ?: return
-                if (!url.startsWith("http://") && !url.startsWith("https://")) return
-                runCatching { flagFile.writeText("") } // consumir para no repetir
-                runOnUiThread {
-                    runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+        val queue = openUrlQueue()
+        // Al arrancar la sesión tiramos lo que quedara de intentos anteriores: si
+        // no, al abrir la app se lanzaría una URL de OAuth ya caducada.
+        runCatching { if (queue.exists()) queue.writeText("") }
+
+        if (urlObserver == null) {
+            urlObserver = object : FileObserver(
+                queue.parentFile?.absolutePath.orEmpty(),
+                CLOSE_WRITE or MODIFY or CREATE or MOVED_TO,
+            ) {
+                override fun onEvent(event: Int, path: String?) {
+                    // path puede llegar a null: en ese caso no filtramos por nombre
+                    // y simplemente miramos la cola.
+                    if (path != null && path != queue.name) return
+                    runOnUiThread { drainOpenUrlQueue() }
                 }
-            }
-        }.apply { startWatching() }
+            }.apply { startWatching() }
+        }
+        startUrlPolling()
+    }
+
+    private fun startUrlPolling() {
+        urlHandler.removeCallbacks(urlPoller)
+        urlHandler.post(urlPoller)
+    }
+
+    /**
+     * Consume la cola y abre la última URL pendiente. Siempre en el hilo de UI,
+     * así que las dos vías (inotify y sondeo) no pueden pisarse.
+     */
+    private fun drainOpenUrlQueue() {
+        val queue = openUrlQueue()
+        if (!queue.isFile || queue.length() == 0L) return
+        val fresh = System.currentTimeMillis() - queue.lastModified() < URL_MAX_AGE_MS
+        val url = runCatching { queue.readText() }.getOrNull()
+            ?.lines()?.lastOrNull { it.isNotBlank() }?.trim()
+        runCatching { queue.writeText("") } // consumir para no repetir
+        if (url == null || !fresh) return
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return
+        openInBrowser(url)
+    }
+
+    /** Abre la URL en el navegador; si no se puede, al menos deja copiarla. */
+    private fun openInBrowser(url: String) {
+        val opened = runCatching {
+            startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            true
+        }.getOrDefault(false)
+        if (opened) {
+            toast("Abriendo el navegador para iniciar sesión…")
+        } else {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("URL de acceso", url))
+            toast("No pude abrir el navegador; copié la URL al portapapeles.")
+        }
     }
 
     // --- Ciclo de vida: reconexión + indicador de sesión viva -----------------
@@ -656,12 +712,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
         liveHandler.post(liveRunnable)
+        // Si el CLI escribió la URL mientras estábamos fuera, se atiende ahora
+        // (Android bloquea abrir Activities desde segundo plano).
+        if (isReady()) startUrlPolling()
     }
 
     override fun onPause() {
         wasPaused = true
         setNotifyArmed(true)
         liveHandler.removeCallbacks(liveRunnable)
+        urlHandler.removeCallbacks(urlPoller)
         super.onPause()
     }
 
@@ -706,6 +766,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         liveHandler.removeCallbacks(liveRunnable)
         loadHandler.removeCallbacks(loadWatchdog)
+        urlHandler.removeCallbacks(urlPoller)
         urlObserver?.stopWatching()
         urlObserver = null
         super.onDestroy()
@@ -781,6 +842,15 @@ class MainActivity : AppCompatActivity() {
     companion object {
         /** Carpeta (oculta) del proyecto donde se copian las imágenes adjuntas. */
         private const val ATTACH_DIR = ".attachments"
+
+        /** Cola de URLs que escribe el xdg-open falso del guest. */
+        private const val OPEN_URL_FILE = ".agent-open-url"
+
+        /** Cada cuánto se mira la cola con la terminal en pantalla. */
+        private const val URL_POLL_MS = 700L
+
+        /** Más viejo que esto, no se abre (sobra de una sesión anterior). */
+        private const val URL_MAX_AGE_MS = 10 * 60_000L
 
         const val EXTRA_PROJECT_NAME = "extra_project_name"
         const val EXTRA_PROJECT_PATH = "extra_project_path"
