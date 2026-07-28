@@ -18,8 +18,8 @@ android {
         // Contrapartida: la app no es publicable en Google Play (distribución por
         // sideload/APK). Ver docs/DESIGN-embedded-linux.md §2.1.
         targetSdk = 28
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0-beta"
 
         // Solo arm64 (el Poco X6 Pro lo es). Aquí irán proot + su loader y, más
         // adelante, no empaquetamos otras ABIs para no inflar la APK.
