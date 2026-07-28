@@ -262,13 +262,19 @@ object LinuxEngine {
             # muestra "Reconnect". Con un socket por CLI, cada servidor se arranca y
             # se usa dentro de su misma instancia de proot.
 
-            # Recarga la config en los servidores tmux que YA estaban vivos (si no,
-            # los cambios de .tmux.conf solo los verían las sesiones creadas desde
-            # cero). Se ejecuta en ESTA instancia de proot, así que es seguro.
-            tmux -L "${'$'}SESSION" source-file /root/.tmux.conf 2>/dev/null || true
+            # Los servidores de tmux son demonios: sobreviven al cierre de la app y
+            # NO releen ~/.tmux.conf, así que uno que venga de una versión anterior
+            # se queda con la config vieja (sin barra de estado, sin binds nuevos).
+            # Estas opciones se mandan en la MISMA invocación que el attach —una
+            # sola conexión de cliente— en vez de con un 'source-file' aparte, que
+            # abría una segunda conexión y podía quedarse esperando.
+            # Solo van aquí las opciones sin espacios (el resto vive en .tmux.conf y
+            # lo cogen los servidores nuevos): así ${'$'}TOPTS se puede dividir en
+            # palabras sin comillas y los ';' llegan a tmux como separadores.
+            TOPTS="set -g status on ; set -g status-position bottom ; set -g renumber-windows on ; bind W kill-window"
 
             if [ -z "${'$'}BIN" ]; then
-              exec tmux -L "${'$'}SESSION" new-session -A -s "${'$'}SESSION" -c "${'$'}WORKDIR"
+              exec tmux -L "${'$'}SESSION" ${'$'}TOPTS \; new-session -A -s "${'$'}SESSION" -c "${'$'}WORKDIR"
             fi
             if command -v "${'$'}BIN" >/dev/null 2>&1; then
               # -A: engancha si la sesión ya existe; si no, la crea en WORKDIR
@@ -276,7 +282,7 @@ object LinuxEngine {
               # sesión caemos a bash. Y si el PROPIO tmux falla o la sesión acaba,
               # el script cae a un shell en la carpeta en vez de morir (así ttyd
               # nunca queda en el "Reconnect" muerto). Sin 'exec' a propósito.
-              tmux -L "${'$'}SESSION" new-session -A -s "${'$'}SESSION" -c "${'$'}WORKDIR" "${'$'}BIN; exec bash -l"
+              tmux -L "${'$'}SESSION" ${'$'}TOPTS \; new-session -A -s "${'$'}SESSION" -c "${'$'}WORKDIR" "${'$'}BIN; exec bash -l"
               echo "[sesión tmux '${'$'}SESSION' terminó — shell de respaldo]"
               cd "${'$'}WORKDIR" 2>/dev/null || cd /root
               exec bash -l

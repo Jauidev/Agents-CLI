@@ -45,6 +45,44 @@
     <string name="env_extras_title">¿Qué quieres instalar?</string>
     <string name="env_busy">Ya hay una tarea en marcha.</string>
 
+    <!-- Guía de uso -->
+    <string name="guide_open">Guía de uso</string>
+    <string name="guide_title">Cómo funciona</string>
+    <string name="guide_intro">Una vuelta rápida por la app. Puedes volver aquí cuando quieras desde el icono ? de la pantalla de proyectos.</string>
+
+    <string name="guide_1_title">Qué es esta app</string>
+    <string name="guide_1_body">Agents CLI lleva un Linux completo dentro del móvil y ejecuta ahí los asistentes de programación: Claude Code, Codex CLI y Gemini CLI. No necesitas instalar nada más ni tener Termux; viene todo incluido. La primera apertura tarda cerca de un minuto en preparar ese Linux.</string>
+
+    <string name="guide_2_title">Empieza por un proyecto</string>
+    <string name="guide_2_body">Un proyecto es, simplemente, una carpeta de tu móvil. Pulsa \"Abrir carpeta…\", elige dónde quieres trabajar y el agente trabajará sobre esos archivos. La pantalla de inicio recuerda los proyectos recientes: la próxima vez entras de un toque.</string>
+
+    <string name="guide_3_title">Elige el asistente</string>
+    <string name="guide_3_body">Arriba a la izquierda están los tres. Toca uno para cambiar de asistente sin salir del proyecto. El punto verde sobre el icono indica que su sesión está viva. Cada proyecto recuerda cuál usaste la última vez.</string>
+
+    <string name="guide_4_title">Iniciar sesión</string>
+    <string name="guide_4_body">La primera vez, el asistente te pedirá entrar con tu cuenta o tu clave. La app abre el navegador sola y, al volver, la sesión queda guardada. No tendrás que repetirlo, ni siquiera al actualizar la app.</string>
+
+    <string name="guide_5_title">La barra de teclas</string>
+    <string name="guide_5_body">Debajo del terminal tienes lo que el teclado del móvil no te da: Pegar (mete el portapapeles), Imagen (adjunta una foto y escribe su ruta, para que el asistente la vea), Esc, Tab, las flechas, Ctrl+C para cancelar, y los símbolos que más se usan.</string>
+
+    <string name="guide_6_title">Varias ventanas a la vez</string>
+    <string name="guide_6_body">Con ＋ abres otra ventana, con ◂ y ▸ cambias, y con ✕ cierras la actual. Sirve para tener el asistente trabajando en una y una consola libre en otra. También puedes tocar directamente el nombre de una ventana en la barra inferior del terminal.</string>
+
+    <string name="guide_7_title">No pierdes lo que estabas haciendo</string>
+    <string name="guide_7_body">Cambiar de asistente, girar la pantalla o salir de la app no interrumpe lo que esté haciendo: sigue trabajando por dentro y lo recuperas tal cual al volver.</string>
+
+    <string name="guide_8_title">Revisa y edita los archivos</string>
+    <string name="guide_8_body">El icono de documento en la cabecera abre el explorador del proyecto. Puedes mirar lo que ha escrito el asistente, con los colores del código, y editarlo y guardarlo ahí mismo.</string>
+
+    <string name="guide_9_title">Te avisa cuando termina</string>
+    <string name="guide_9_body">Si dejas la app en segundo plano, recibes una notificación cuando el asistente acaba una tarea larga o necesita que le confirmes algo. Tocándola vuelves justo a ese proyecto.</string>
+
+    <string name="guide_10_title">El entorno Linux</string>
+    <string name="guide_10_body">Desde \"Entorno\", en la pantalla de inicio, ves las versiones y el espacio que ocupa, actualizas los asistentes, instalas extras como Python o Go, y puedes dejarlo todo como recién instalado sin perder tus sesiones iniciadas.</string>
+
+    <string name="guide_11_title">Un consejo</string>
+    <string name="guide_11_body">Mientras instales algo pesado, deja la app en pantalla: Android corta los procesos largos cuando se queda en segundo plano.</string>
+
     <!-- Explorador y editor de archivos (C2) -->
     <string name="files_open">Archivos del proyecto</string>
     <string name="editor_save">Guardar</string>

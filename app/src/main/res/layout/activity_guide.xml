@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Guía de uso: explica la app a quien la abre por primera vez. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_base"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/bg_mantle"
+        android:paddingHorizontal="12dp">
+
+        <TextView
+            android:id="@+id/btn_back"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:paddingEnd="12dp"
+            android:text="@string/env_back"
+            android:textColor="@color/accent"
+            android:textSize="16sp"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="@string/guide_title"
+            android:textColor="@color/text"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/guide_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingStart="18dp"
+        android:paddingEnd="18dp">
+
+        <LinearLayout
+            android:id="@+id/guide_sections"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="16dp"
+            android:paddingBottom="28dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingBottom="6dp"
+                android:text="@string/guide_intro"
+                android:textColor="@color/text_dim"
+                android:textSize="14sp"
+                android:lineSpacingMultiplier="1.25" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

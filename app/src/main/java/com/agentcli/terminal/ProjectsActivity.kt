@@ -36,6 +36,11 @@ class ProjectsActivity : AppCompatActivity() {
 
         binding.btnAddProject.setOnClickListener { onAddProjectClicked() }
         binding.btnEnv.setOnClickListener { startActivity(Intent(this, EnvActivity::class.java)) }
+        binding.btnGuide.setOnClickListener { openGuide() }
+
+        // En el primer arranque la guía se abre sola: sin ella, una pantalla vacía
+        // con un botón de "abrir carpeta" no explica gran cosa.
+        if (savedInstanceState == null && GuideActivity.shouldShowOnStart(this)) openGuide()
     }
 
     override fun onResume() {
@@ -194,6 +199,8 @@ class ProjectsActivity : AppCompatActivity() {
         val project = ProjectStore.touch(this, name, guestPath)
         openProject(project)
     }
+
+    private fun openGuide() = startActivity(Intent(this, GuideActivity::class.java))
 
     private fun snack(msg: String) =
         Snackbar.make(binding.root, msg, Snackbar.LENGTH_SHORT).show()

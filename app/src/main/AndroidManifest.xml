@@ -60,6 +60,13 @@
             android:parentActivityName=".ProjectsActivity"
             android:configChanges="orientation|screenSize|keyboardHidden" />
 
+        <!-- Guía de uso: se abre desde ProjectsActivity (icono ?) y en el 1er arranque. -->
+        <activity
+            android:name=".GuideActivity"
+            android:exported="false"
+            android:parentActivityName=".ProjectsActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
         <!-- Gestor del entorno Linux (D2): se abre desde ProjectsActivity. -->
         <activity
             android:name=".EnvActivity"

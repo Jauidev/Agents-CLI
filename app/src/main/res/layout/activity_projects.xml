@@ -33,6 +33,19 @@
             android:textSize="22sp"
             android:textStyle="bold" />
 
+        <!-- Guía de uso: cómo funciona la app. -->
+        <ImageView
+            android:id="@+id/btn_guide"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_help"
+            android:tint="@color/text_dim"
+            android:contentDescription="@string/guide_open"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true" />
+
         <!-- Gestor del entorno Linux (D2): es global, no de un proyecto. -->
         <TextView
             android:id="@+id/btn_env"

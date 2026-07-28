@@ -137,7 +137,18 @@ class MainActivity : AppCompatActivity() {
     private val windowNew = KeyDef("＋", "c", 67)
     private val windowPrev = KeyDef("◂", "p", 80)
     private val windowNext = KeyDef("▸", "n", 78)
-    private val windowKill = KeyDef("✕", "W", 87, shift = true)
+
+    /**
+     * Cerrar ventana. Se usa el atajo POR DEFECTO de tmux (prefijo + `&`) en vez
+     * de un `bind` propio: los servidores de tmux sobreviven al cierre de la app
+     * (son demonios), así que los que ya estaban vivos nunca releen el
+     * .tmux.conf nuevo y un bind propio simplemente no existiría para ellos —que
+     * es justo por lo que ✕ no cerraba nada mientras ＋/◂/▸, que son atajos de
+     * serie, sí funcionaban. `&` pregunta "kill-window? (y/n)", así que después
+     * hay que mandar la `y`.
+     */
+    private val windowKill = KeyDef("✕", "&", 55, shift = true)
+    private val confirmYes = KeyDef("y", "y", 89)
 
     private fun setupKeyBar() {
         binding.keyBarRow.gravity = android.view.Gravity.CENTER_VERTICAL
@@ -174,7 +185,7 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener {
                 Snackbar.make(binding.root, "¿Cerrar esta ventana de tmux?", Snackbar.LENGTH_LONG)
                     .setAnchorView(binding.keyBar)
-                    .setAction("Cerrar") { sendTmuxPrefix(windowKill) }
+                    .setAction("Cerrar") { killTmuxWindow() }
                     .show()
             }
         })
@@ -269,6 +280,16 @@ class MainActivity : AppCompatActivity() {
             })();
         """.trimIndent()
         binding.webView.evaluateJavascript(js, null)
+    }
+
+    /**
+     * Cierra la ventana actual de tmux: prefijo + `&` abre el "kill-window? (y/n)"
+     * y hay que responder. La `y` va con un pequeño retardo porque tmux tiene que
+     * haber pintado el prompt y estar leyendo la tecla.
+     */
+    private fun killTmuxWindow() {
+        sendTmuxPrefix(windowKill)
+        binding.webView.postDelayed({ sendKeyToTerminal(confirmYes) }, KILL_CONFIRM_DELAY_MS)
     }
 
     private fun jsString(s: String): String =
@@ -851,6 +872,9 @@ class MainActivity : AppCompatActivity() {
 
         /** Más viejo que esto, no se abre (sobra de una sesión anterior). */
         private const val URL_MAX_AGE_MS = 10 * 60_000L
+
+        /** Margen para que tmux pinte el "kill-window? (y/n)" antes de la `y`. */
+        private const val KILL_CONFIRM_DELAY_MS = 250L
 
         const val EXTRA_PROJECT_NAME = "extra_project_name"
         const val EXTRA_PROJECT_PATH = "extra_project_path"
