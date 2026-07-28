@@ -32,6 +32,19 @@
             android:textColor="@color/text"
             android:textSize="22sp"
             android:textStyle="bold" />
+
+        <!-- Gestor del entorno Linux (D2): es global, no de un proyecto. -->
+        <TextView
+            android:id="@+id/btn_env"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="@string/env_open"
+            android:textColor="@color/accent"
+            android:textSize="14sp"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true" />
     </LinearLayout>
 
     <!-- Lista (scroll) o estado vacío -->

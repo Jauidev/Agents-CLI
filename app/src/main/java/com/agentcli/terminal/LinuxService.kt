@@ -3,12 +3,15 @@ package com.agentcli.terminal
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.FileObserver
 import android.os.IBinder
 import android.util.Log
+import java.io.File
 import kotlin.concurrent.thread
 
 /**
@@ -28,20 +31,129 @@ class LinuxService : Service() {
     // proyecto: el mismo puerto se reutiliza entre proyectos, F4).
     private val runningKey = mutableMapOf<Int, String>()
 
+    /** agente -> proyecto en el que se lanzó (para que el aviso abra el correcto). */
+    private data class Launch(val workdir: String, val projectName: String)
+
+    private val launches = mutableMapOf<String, Launch>()
+    private var lastLaunch: Launch? = null
+
     private var wakeLock: android.os.PowerManager.WakeLock? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        startNotifyWatcher()
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val agent = intent?.getStringExtra(EXTRA_AGENT) ?: "claude"
         val port = intent?.getIntExtra(EXTRA_PORT, 7681) ?: 7681
         val workdir = intent?.getStringExtra(EXTRA_WORKDIR) ?: "/root"
         val session = intent?.getStringExtra(EXTRA_SESSION) ?: agent
+        val projectName = intent?.getStringExtra(EXTRA_PROJECT_NAME)
+            ?: workdir.substringAfterLast('/').ifEmpty { "root" }
         val restart = intent?.getBooleanExtra(EXTRA_RESTART, false) ?: false
 
         startForeground(NOTIF_ID, buildNotification())
         acquireWakeLock()
+        Launch(workdir, projectName).let { launches[agent] = it; lastLaunch = it }
         if (restart) running.remove(port)?.let { runCatching { it.destroyForcibly() } }
         startTtyd(agent, port, workdir, session)
         return START_STICKY
+    }
+
+    // --- Avisos del agente (B1) -----------------------------------------------
+
+    /**
+     * Vigila la cola de avisos que escribe `agent-notify` dentro del guest (mismo
+     * truco que el xdg-open del OAuth) y publica una notificación de Android.
+     * Vive en el servicio, no en la Activity, porque el aviso importa justo cuando
+     * la app está en segundo plano.
+     */
+    private var notifyObserver: FileObserver? = null
+
+    @Suppress("DEPRECATION") // constructor (String): el de File exige API 29
+    private fun startNotifyWatcher() {
+        if (notifyObserver != null) return
+        val tmpDir = File(LinuxEngine.rootfsDir(this), "tmp").apply { mkdirs() }
+        val queue = File(tmpDir, LinuxEngine.NOTIFY_FILE)
+        notifyObserver = object : FileObserver(
+            tmpDir.absolutePath,
+            CLOSE_WRITE or MODIFY or CREATE or MOVED_TO,
+        ) {
+            override fun onEvent(event: Int, path: String?) {
+                if (path != queue.name) return
+                val line = runCatching {
+                    queue.readText().lines().lastOrNull { it.isNotBlank() }?.trim()
+                }.getOrNull() ?: return
+                runCatching { queue.writeText("") } // consumir para no repetir
+                publishAgentAlert(line)
+            }
+        }.apply { startWatching() }
+    }
+
+    /** Convierte una línea `sesión|tipo|epoch|msg` en una notificación. */
+    private fun publishAgentAlert(line: String) {
+        val parts = line.split("|")
+        // La sesión de tmux es "<agente>_<hashProyecto>" (F4) → el agente es el
+        // prefijo. Si el formato no cuadra (p.ej. tmux no expandió el nombre),
+        // caemos a un texto genérico y al último proyecto abierto.
+        val agent = parts.getOrNull(0)?.substringBefore('_').orEmpty()
+        val kind = parts.getOrNull(1).orEmpty()
+        val label = when (agent) {
+            "claude" -> "Claude Code"
+            "codex" -> "Codex CLI"
+            "gemini" -> "Gemini CLI"
+            else -> "El agente"
+        }
+        val text = when (kind) {
+            "notification" -> "necesita tu confirmación"
+            "stop" -> "terminó la tarea"
+            "notify" -> "terminó la tarea"
+            else -> "lleva un rato en silencio: puede haber terminado"
+        }
+        val launch = launches[agent] ?: lastLaunch ?: return
+
+        val tap = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_PROJECT_PATH, launch.workdir)
+            putExtra(MainActivity.EXTRA_PROJECT_NAME, launch.projectName)
+            if (agent.isNotEmpty()) putExtra(MainActivity.EXTRA_PROJECT_AGENT, agent)
+        }
+        val pending = PendingIntent.getActivity(
+            this,
+            0,
+            tap,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        ensureAlertChannel()
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, ALERT_CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this).setPriority(Notification.PRIORITY_HIGH)
+        }
+        val notif = builder
+            .setContentTitle("$label — ${launch.projectName}")
+            .setContentText("$label $text")
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(ALERT_NOTIF_ID, notif)
+    }
+
+    private fun ensureAlertChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val mgr = getSystemService(NotificationManager::class.java)
+        if (mgr.getNotificationChannel(ALERT_CHANNEL_ID) != null) return
+        mgr.createNotificationChannel(
+            NotificationChannel(
+                ALERT_CHANNEL_ID,
+                "Avisos del agente",
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply { description = "El CLI terminó una tarea o pide confirmación" },
+        )
     }
 
     /** Evita que Doze congele el CPU con sesiones largas en marcha (F5). */
@@ -76,6 +188,9 @@ class LinuxService : Service() {
 
         // El script de sesión decide qué CLI lanzar según el agente (F2).
         LinuxEngine.ensureSessionScript(this)
+        // Avisador + hooks de los CLIs (B1). Aquí porque el .tmux.conf que escribe
+        // ensureSessionScript ya referencia al script.
+        LinuxEngine.ensureAgentHooks(this)
 
         // Comando del guest: ttyd sirviendo la sesión del agente en su workdir.
         // -W permite entrada del cliente; -i 127.0.0.1 no expone a la red.
@@ -125,6 +240,8 @@ class LinuxService : Service() {
         super.onDestroy()
         running.values.forEach { runCatching { it.destroyForcibly() } }
         running.clear()
+        notifyObserver?.stopWatching()
+        notifyObserver = null
         runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
         Log.i(TAG, "LinuxService detenido; ttyd(s) parados")
     }
@@ -163,10 +280,16 @@ class LinuxService : Service() {
         private const val TAG = "LinuxService"
         private const val CHANNEL_ID = "linux_engine"
         private const val NOTIF_ID = 1001
+
+        /** Canal aparte para los avisos del agente (B1): estos SÍ deben sonar. */
+        private const val ALERT_CHANNEL_ID = "agent_alerts"
+        const val ALERT_NOTIF_ID = 1002
+
         private const val EXTRA_AGENT = "extra_agent"
         private const val EXTRA_PORT = "extra_port"
         private const val EXTRA_WORKDIR = "extra_workdir"
         private const val EXTRA_SESSION = "extra_session"
+        private const val EXTRA_PROJECT_NAME = "extra_project_name"
         private const val EXTRA_RESTART = "extra_restart"
 
         /**
@@ -195,14 +318,11 @@ class LinuxService : Service() {
             session: AgentSession,
             workdir: String = "/root",
             tmuxSession: String = session.bootstrapArg,
+            projectName: String = "",
         ) {
-            val intent = Intent(context, LinuxService::class.java).apply {
-                putExtra(EXTRA_AGENT, session.bootstrapArg)
-                putExtra(EXTRA_PORT, session.port)
-                putExtra(EXTRA_WORKDIR, workdir)
-                putExtra(EXTRA_SESSION, tmuxSession)
-            }
-            context.startForegroundService(intent)
+            context.startForegroundService(
+                buildIntent(context, session, workdir, tmuxSession, projectName, restart = false),
+            )
         }
 
         /** Reinicia el ttyd de una sesión (mata el anterior) con nuevo workdir/sesión. */
@@ -211,15 +331,27 @@ class LinuxService : Service() {
             session: AgentSession,
             workdir: String,
             tmuxSession: String = session.bootstrapArg,
+            projectName: String = "",
         ) {
-            val intent = Intent(context, LinuxService::class.java).apply {
-                putExtra(EXTRA_AGENT, session.bootstrapArg)
-                putExtra(EXTRA_PORT, session.port)
-                putExtra(EXTRA_WORKDIR, workdir)
-                putExtra(EXTRA_SESSION, tmuxSession)
-                putExtra(EXTRA_RESTART, true)
-            }
-            context.startForegroundService(intent)
+            context.startForegroundService(
+                buildIntent(context, session, workdir, tmuxSession, projectName, restart = true),
+            )
+        }
+
+        private fun buildIntent(
+            context: Context,
+            session: AgentSession,
+            workdir: String,
+            tmuxSession: String,
+            projectName: String,
+            restart: Boolean,
+        ): Intent = Intent(context, LinuxService::class.java).apply {
+            putExtra(EXTRA_AGENT, session.bootstrapArg)
+            putExtra(EXTRA_PORT, session.port)
+            putExtra(EXTRA_WORKDIR, workdir)
+            putExtra(EXTRA_SESSION, tmuxSession)
+            if (projectName.isNotEmpty()) putExtra(EXTRA_PROJECT_NAME, projectName)
+            if (restart) putExtra(EXTRA_RESTART, true)
         }
     }
 }

@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gestor del entorno Linux (D2): estado, mantenimiento y log en vivo. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_base"
+    android:fitsSystemWindows="true">
+
+    <!-- Cabecera -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/bg_mantle"
+        android:paddingHorizontal="12dp">
+
+        <TextView
+            android:id="@+id/btn_back"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:paddingEnd="12dp"
+            android:paddingStart="0dp"
+            android:text="@string/env_back"
+            android:textColor="@color/accent"
+            android:textSize="14sp"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:text="@string/env_title"
+            android:textColor="@color/text"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingHorizontal="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="14dp"
+            android:paddingBottom="24dp">
+
+            <!-- Estado del entorno -->
+            <TextView
+                android:id="@+id/env_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/card_bg"
+                android:padding="14dp"
+                android:fontFamily="monospace"
+                android:textColor="@color/text_dim"
+                android:textSize="12sp"
+                android:textIsSelectable="true"
+                android:text="@string/env_loading" />
+
+            <!-- Mantenimiento -->
+            <TextView
+                style="@style/EnvSectionTitle"
+                android:text="@string/env_section_maintenance" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_update_clis"
+                style="@style/EnvAction"
+                android:text="@string/env_update_clis" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_install_extras"
+                style="@style/EnvAction"
+                android:text="@string/env_install_extras" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_clean"
+                style="@style/EnvAction"
+                android:text="@string/env_clean" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_reprovision"
+                style="@style/EnvAction"
+                app:strokeColor="@color/accent_red"
+                android:textColor="@color/accent_red"
+                android:text="@string/env_reprovision" />
+
+            <!-- Avisos -->
+            <TextView
+                style="@style/EnvSectionTitle"
+                android:text="@string/env_section_notify" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switch_idle_notify"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingVertical="6dp"
+                android:textColor="@color/text"
+                android:textSize="14sp"
+                android:text="@string/env_idle_notify" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="2dp"
+                android:textColor="@color/text_faint"
+                android:textSize="12sp"
+                android:text="@string/env_idle_notify_hint" />
+
+            <!-- Log en vivo -->
+            <TextView
+                style="@style/EnvSectionTitle"
+                android:text="@string/env_section_log" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingBottom="8dp"
+                android:textColor="@color/text_faint"
+                android:textSize="12sp"
+                android:text="@string/env_foreground_warning" />
+
+            <TextView
+                android:id="@+id/env_log"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="150dp"
+                android:background="@color/bg_mantle"
+                android:padding="10dp"
+                android:fontFamily="monospace"
+                android:textColor="@color/text_dim"
+                android:textSize="11sp"
+                android:textIsSelectable="true" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

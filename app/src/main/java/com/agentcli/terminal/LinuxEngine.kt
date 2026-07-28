@@ -6,6 +6,8 @@ import android.util.Log
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
@@ -43,6 +45,26 @@ object LinuxEngine {
     fun engineDir(ctx: Context) = File(ctx.filesDir, "engine")
     fun rootfsDir(ctx: Context) = File(ctx.filesDir, "rootfs")
     private fun markerFile(ctx: Context) = File(ctx.filesDir, ".provisioned")
+
+    /**
+     * Ruta REAL en Android de una ruta vista desde el guest. Permite a la app
+     * leer/escribir los archivos del proyecto sin pasar por proot (adjuntar
+     * imágenes, explorador de archivos).
+     *
+     *  - `/sdcard/...` → `/storage/emulated/0/...` (proot lo monta con -b, ver
+     *    [prootPrefix]; el acceso por ruta real funciona gracias a targetSdk 28 +
+     *    requestLegacyExternalStorage).
+     *  - cualquier otra → dentro del rootfs extraído en filesDir.
+     */
+    fun hostFileFor(ctx: Context, guestPath: String): File =
+        if (guestPath == "/sdcard" || guestPath.startsWith("/sdcard/")) {
+            File("/storage/emulated/0" + guestPath.removePrefix("/sdcard"))
+        } else {
+            File(rootfsDir(ctx), guestPath.trimStart('/'))
+        }
+
+    /** Versión del rootfs empaquetado (se muestra en el gestor del entorno). */
+    fun rootfsVersion(): String = ROOTFS_VERSION
 
     /** ¿Ya se extrajo el entorno base con la versión actual del rootfs? */
     fun isProvisioned(ctx: Context): Boolean =
@@ -139,17 +161,35 @@ object LinuxEngine {
         )
         Os.chmod(xdgOpen.absolutePath, 0b111_101_101) // 0755
 
-        // Config mínima de tmux (barra fuera, ratón/scroll táctil, sin lag de Esc).
+        // Config de tmux: ratón/scroll táctil, sin lag de Esc y barra de estado con
+        // la lista de ventanas (E1). Con `mouse on`, TOCAR el nombre de una ventana
+        // en la barra cambia a ella: es el selector de ventanas, gratis y nativo.
+        // Los colores son la paleta de la app (Catppuccin, ver res/values/colors.xml).
         val tmuxConf = File(rootfsDir(ctx), "root/.tmux.conf")
         tmuxConf.parentFile?.mkdirs()
         tmuxConf.writeText(
             """
-            set -g status off
             set -g mouse on
             set -sg escape-time 0
             set -g history-limit 10000
             set -g default-shell /bin/bash
-            """.trimIndent() + "\n",
+
+            # --- Barra de estado = selector de ventanas (E1) ---
+            set -g status on
+            set -g status-position bottom
+            set -g status-justify left
+            set -g status-style "bg=#181825,fg=#7F849C"
+            set -g status-left ""
+            set -g status-right ""
+            setw -g window-status-format " #I:#W "
+            setw -g window-status-current-format "#[bg=#CBA6F7,fg=#1E1E2E,bold] #I:#W "
+
+            # Ventana nueva en la carpeta actual; cerrar sin diálogo de confirmación
+            # (los chips de la app mandan prefijo + c / W).
+            bind c new-window -c "#{pane_current_path}"
+            bind W kill-window
+            set -g renumber-windows on
+            """.trimIndent() + "\n" + idleNotifyConf(ctx),
         )
 
         // El bit +x de tmux se pierde al empaquetar desde Windows; lo aseguramos.
@@ -201,6 +241,12 @@ object LinuxEngine {
             # de proot no se enganchan bien al servidor que trazó la primera → ttyd
             # muestra "Reconnect". Con un socket por CLI, cada servidor se arranca y
             # se usa dentro de su misma instancia de proot.
+
+            # Recarga la config en los servidores tmux que YA estaban vivos (si no,
+            # los cambios de .tmux.conf solo los verían las sesiones creadas desde
+            # cero). Se ejecuta en ESTA instancia de proot, así que es seguro.
+            tmux -L "${'$'}SESSION" source-file /root/.tmux.conf 2>/dev/null || true
+
             if [ -z "${'$'}BIN" ]; then
               exec tmux -L "${'$'}SESSION" new-session -A -s "${'$'}SESSION" -c "${'$'}WORKDIR"
             fi
@@ -225,6 +271,131 @@ object LinuxEngine {
             """.trimIndent() + "\n",
         )
         Os.chmod(script.absolutePath, 0b111_101_101) // 0755
+    }
+
+    // -------------------------------------------------------------------------
+    // Avisos del agente (B1)
+    // -------------------------------------------------------------------------
+
+    /** Script del guest que avisa a la app; ver [ensureAgentHooks]. */
+    private const val NOTIFY_BIN = "/usr/local/bin/agent-notify"
+
+    /** Fichero cola de avisos dentro del guest (lo vigila LinuxService). */
+    const val NOTIFY_FILE = ".agent-notify"
+
+    /** Bandera que pone MainActivity al irse a segundo plano: "sí, avísame". */
+    const val NOTIFY_ARMED_FILE = ".agent-notify-armed"
+
+    private const val PREFS = "agentterminal"
+    private const val KEY_NOTIFY_IDLE = "notify_idle"
+
+    /** ¿Está activo el detector genérico por silencio de tmux? (D2 lo conmuta.) */
+    fun isIdleNotifyEnabled(ctx: Context): Boolean =
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_NOTIFY_IDLE, true)
+
+    fun setIdleNotifyEnabled(ctx: Context, enabled: Boolean) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_NOTIFY_IDLE, enabled).apply()
+    }
+
+    /**
+     * Trozo de .tmux.conf con el detector genérico de "el agente se quedó quieto".
+     * Es la capa que cubre a Gemini y a cualquier shell, porque solo Claude Code y
+     * Codex tienen hooks propios. `agent-notify` exige la bandera de "app en
+     * segundo plano", así que en primer plano no dispara nunca.
+     */
+    private fun idleNotifyConf(ctx: Context): String =
+        if (!isIdleNotifyEnabled(ctx)) "" else """
+
+        # --- Aviso por silencio (B1), capa genérica ---
+        setw -g monitor-silence 25
+        set -g silence-action any
+        set -g visual-silence off
+        set-hook -g alert-silence 'run-shell "$NOTIFY_BIN #{session_name} idle"'
+        """.trimIndent() + "\n"
+
+    /**
+     * Instala en el guest el avisador y lo engancha a los CLIs que tienen hooks
+     * propios (Claude Code y Codex). Idempotente y NO destructivo: si el usuario
+     * ya tiene configuración propia, se respeta y solo se añade lo que falta.
+     */
+    fun ensureAgentHooks(ctx: Context) {
+        val rootfs = rootfsDir(ctx)
+
+        // 1) El avisador: escribe una línea en la cola que vigila LinuxService.
+        val notify = File(rootfs, NOTIFY_BIN.trimStart('/'))
+        notify.parentFile?.mkdirs()
+        notify.writeText(
+            """
+            #!/bin/sh
+            # Generado por la app (B1). Uso: agent-notify <sesion|agente> <tipo> [msg]
+            # Solo avisa si la app está en segundo plano; si no, sale en silencio.
+            [ -f /tmp/$NOTIFY_ARMED_FILE ] || exit 0
+            SESSION="${'$'}{1:-agent}"
+            KIND="${'$'}{2:-idle}"
+            MSG="${'$'}{3:-}"
+            NOW=${'$'}(date +%s)
+            STAMP="/tmp/.agent-notify-last-${'$'}(echo "${'$'}SESSION" | tr -c 'A-Za-z0-9_' '_')"
+            LAST=${'$'}(cat "${'$'}STAMP" 2>/dev/null)
+            LAST=${'$'}{LAST:-0}
+            # Antirrebote: un aviso como mucho cada 20 s por sesión.
+            if [ ${'$'}((NOW - LAST)) -lt 20 ]; then exit 0; fi
+            echo "${'$'}NOW" > "${'$'}STAMP"
+            printf '%s|%s|%s|%s\n' "${'$'}SESSION" "${'$'}KIND" "${'$'}NOW" "${'$'}MSG" >> /tmp/$NOTIFY_FILE
+            exit 0
+            """.trimIndent() + "\n",
+        )
+        Os.chmod(notify.absolutePath, 0b111_101_101) // 0755
+
+        // 2) Claude Code: hooks Notification (pide permiso) y Stop (terminó).
+        runCatching { ensureClaudeHooks(rootfs) }
+            .onFailure { Log.w(TAG, "hooks de Claude: ${it.message}") }
+
+        // 3) Codex: clave `notify` de su config.toml.
+        runCatching { ensureCodexNotify(rootfs) }
+            .onFailure { Log.w(TAG, "notify de Codex: ${it.message}") }
+
+        // Gemini CLI no expone hooks → lo cubre el detector por silencio de tmux.
+    }
+
+    /** Fusiona nuestros hooks en /root/.claude/settings.json sin pisar los suyos. */
+    private fun ensureClaudeHooks(rootfs: File) {
+        val settings = File(rootfs, "root/.claude/settings.json")
+        val current = if (settings.exists()) settings.readText() else ""
+        if (current.contains("agent-notify")) return // ya enganchado
+
+        val json = runCatching { JSONObject(current) }.getOrElse { JSONObject() }
+        val hooks = json.optJSONObject("hooks") ?: JSONObject()
+        mapOf("Notification" to "notification", "Stop" to "stop").forEach { (event, kind) ->
+            val entries = hooks.optJSONArray(event) ?: JSONArray()
+            entries.put(
+                JSONObject().put(
+                    "hooks",
+                    JSONArray().put(
+                        JSONObject()
+                            .put("type", "command")
+                            .put("command", "$NOTIFY_BIN claude $kind"),
+                    ),
+                ),
+            )
+            hooks.put(event, entries)
+        }
+        json.put("hooks", hooks)
+        settings.parentFile?.mkdirs()
+        settings.writeText(json.toString(2) + "\n")
+    }
+
+    /** Añade la clave `notify` al config.toml de Codex si no está ya. */
+    private fun ensureCodexNotify(rootfs: File) {
+        val cfg = File(rootfs, "root/.codex/config.toml")
+        val current = if (cfg.exists()) cfg.readText() else ""
+        if (current.contains("agent-notify")) return
+        cfg.parentFile?.mkdirs()
+        val prefix = if (current.isEmpty() || current.endsWith("\n")) "" else "\n"
+        cfg.appendText(
+            prefix + "\n# Añadido por Agents CLI: avisa a la app cuando Codex termina.\n" +
+                "notify = [\"$NOTIFY_BIN\", \"codex\", \"notify\"]\n",
+        )
     }
 
     /**

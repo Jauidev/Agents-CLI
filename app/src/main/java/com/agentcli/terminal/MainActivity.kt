@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.method.ScrollingMovementMethod
 import android.view.View
+import android.webkit.MimeTypeMap
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -21,6 +22,7 @@ import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.agentcli.terminal.databinding.ActivityMainBinding
@@ -29,6 +31,9 @@ import org.json.JSONObject
 import java.io.File
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.concurrent.thread
 
 /**
@@ -73,6 +78,12 @@ class MainActivity : AppCompatActivity() {
         setupKeyBar()
 
         binding.headerBack.setOnClickListener { finish() } // volver a Proyectos
+        binding.headerFiles.setOnClickListener {
+            startActivity(
+                Intent(this, FilesActivity::class.java)
+                    .putExtra(FilesActivity.EXTRA_PATH, projectPath),
+            )
+        }
         // Abrimos en el último CLI usado en este proyecto.
         enterSession(currentSession)
     }
@@ -117,6 +128,17 @@ class MainActivity : AppCompatActivity() {
     /** dp → px según la densidad de la pantalla. */
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
+    /**
+     * Teclas de gestión de ventanas de tmux (E1). Se mandan como <prefijo> + tecla
+     * DESDE DENTRO del terminal (ver [sendTmuxPrefix]); nunca con `tmux` desde
+     * Kotlin, porque cada runInGuest es otra instancia de proot y su cliente no
+     * engancha con el servidor tmux que trazó la primera (ver agent-session.sh).
+     */
+    private val windowNew = KeyDef("＋", "c", 67)
+    private val windowPrev = KeyDef("◂", "p", 80)
+    private val windowNext = KeyDef("▸", "n", 78)
+    private val windowKill = KeyDef("✕", "W", 87, shift = true)
+
     private fun setupKeyBar() {
         binding.keyBarRow.gravity = android.view.Gravity.CENTER_VERTICAL
 
@@ -126,14 +148,36 @@ class MainActivity : AppCompatActivity() {
             setChipIcon(this, R.drawable.ic_paste, R.color.accent)
             setOnClickListener { pasteFromClipboard() }
         })
+        // Chip de adjuntar imagen (A3): la copia al proyecto y pega su ruta.
+        addChip(makeChip("Imagen").apply {
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.accent))
+            setChipIcon(this, R.drawable.ic_attach, R.color.accent)
+            setOnClickListener { pickImage.launch("image/*") }
+        })
         addDivider()
 
-        keyGroups.forEachIndexed { index, group ->
+        keyGroups.forEach { group ->
             group.forEach { def ->
                 addChip(makeChip(def.label).apply { setOnClickListener { sendKeyToTerminal(def) } })
             }
-            if (index != keyGroups.lastIndex) addDivider()
+            addDivider()
         }
+
+        // Grupo de ventanas de tmux (E1): nueva, anterior, siguiente, cerrar.
+        // Además, con `mouse on` se puede tocar el nombre de la ventana en la barra
+        // de estado de tmux para saltar a ella.
+        addChip(makeChip(windowNew.label).apply { setOnClickListener { sendTmuxPrefix(windowNew) } })
+        addChip(makeChip(windowPrev.label).apply { setOnClickListener { sendTmuxPrefix(windowPrev) } })
+        addChip(makeChip(windowNext.label).apply { setOnClickListener { sendTmuxPrefix(windowNext) } })
+        // Cerrar pide confirmación: un toque accidental mataría la ventana del CLI.
+        addChip(makeChip(windowKill.label).apply {
+            setOnClickListener {
+                Snackbar.make(binding.root, "¿Cerrar esta ventana de tmux?", Snackbar.LENGTH_LONG)
+                    .setAnchorView(binding.keyBar)
+                    .setAction("Cerrar") { sendTmuxPrefix(windowKill) }
+                    .show()
+            }
+        })
     }
 
     /** Crea un botón con estilo de "chip" grande (redondeado, fondo sutil). */
@@ -202,25 +246,40 @@ class MainActivity : AppCompatActivity() {
         binding.webView.evaluateJavascript(js, null)
     }
 
+    /**
+     * Manda la tecla prefijo de tmux (Ctrl+B) seguida de [def] al terminal. Los dos
+     * keydown van en el mismo bloque JS: xterm.js los procesa en orden, así que
+     * tmux los recibe como una secuencia de prefijo válida.
+     */
+    private fun sendTmuxPrefix(def: KeyDef) {
+        val js = """
+            (function(){
+              var ta = document.querySelector('.xterm-helper-textarea');
+              if (!ta) return;
+              ta.focus();
+              function k(key, code, ctrl, shift){
+                ta.dispatchEvent(new KeyboardEvent('keydown', {
+                  key: key, keyCode: code, which: code,
+                  ctrlKey: ctrl, shiftKey: shift,
+                  bubbles: true, cancelable: true
+                }));
+              }
+              k('b', 66, true, false);
+              k(${jsString(def.key)}, ${def.code}, ${def.ctrl}, ${def.shift});
+            })();
+        """.trimIndent()
+        binding.webView.evaluateJavascript(js, null)
+    }
+
     private fun jsString(s: String): String =
         "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
     /**
-     * Pega el portapapeles de Android en el terminal: despacha un evento 'paste'
-     * sintético al textarea de xterm.js con el texto en su clipboardData. Así se
-     * respetan saltos de línea y caracteres especiales (a diferencia de teclear).
+     * Inyecta [text] en el terminal despachando un evento 'paste' sintético al
+     * textarea de xterm.js con el texto en su clipboardData. Así se respetan
+     * saltos de línea y caracteres especiales (a diferencia de teclear).
      */
-    private fun pasteFromClipboard() {
-        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val text = cm.primaryClip
-            ?.takeIf { it.itemCount > 0 }
-            ?.getItemAt(0)
-            ?.coerceToText(this)
-            ?.toString()
-        if (text.isNullOrEmpty()) {
-            toast("Portapapeles vacío")
-            return
-        }
+    private fun pasteTextIntoTerminal(text: String) {
         val quoted = JSONObject.quote(text) // escapa comillas, saltos de línea, etc.
         val js = """
             (function(){
@@ -235,6 +294,71 @@ class MainActivity : AppCompatActivity() {
             })();
         """.trimIndent()
         binding.webView.evaluateJavascript(js, null)
+    }
+
+    /** Pega el portapapeles de Android en el terminal. */
+    private fun pasteFromClipboard() {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val text = cm.primaryClip
+            ?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)
+            ?.coerceToText(this)
+            ?.toString()
+        if (text.isNullOrEmpty()) {
+            toast("Portapapeles vacío")
+            return
+        }
+        pasteTextIntoTerminal(text)
+    }
+
+    // --- Adjuntar imágenes al prompt (A3) -------------------------------------
+
+    /** Selector de imagen del sistema (URI de contenido: no pide permisos). */
+    private val pickImage = registerForActivityResult(
+        ActivityResultContracts.GetContent(),
+    ) { uri -> if (uri != null) attachImage(uri) }
+
+    /**
+     * Copia la imagen elegida dentro del proyecto (o en /tmp del guest si no hay
+     * proyecto) y pega su ruta en el prompt, para que el CLI —que es multimodal—
+     * pueda leerla. Se usa ruta RELATIVA dentro del proyecto porque los tres CLIs
+     * trabajan sobre el cwd.
+     */
+    private fun attachImage(uri: Uri) {
+        thread {
+            val result = runCatching {
+                val name = "img-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
+                    .format(Date())}.${imageExtension(uri)}"
+                val (dir, guestRef) = if (projectPath == "/root") {
+                    File(LinuxEngine.rootfsDir(this), "tmp") to "/tmp/$name"
+                } else {
+                    File(LinuxEngine.hostFileFor(this, projectPath), ATTACH_DIR) to "$ATTACH_DIR/$name"
+                }
+                dir.mkdirs()
+                val dest = File(dir, name)
+                (contentResolver.openInputStream(uri)
+                    ?: error("no pude abrir la imagen")).use { input ->
+                    dest.outputStream().use { input.copyTo(it) }
+                }
+                guestRef
+            }
+            runOnUiThread {
+                result
+                    .onSuccess { ref ->
+                        pasteTextIntoTerminal("$ref ")
+                        toast("Imagen adjuntada: $ref")
+                    }
+                    .onFailure { toast("No pude adjuntar la imagen: ${it.message}") }
+            }
+        }
+    }
+
+    /** Extensión del archivo a partir del tipo MIME (png por defecto). */
+    private fun imageExtension(uri: Uri): String {
+        val mime = contentResolver.getType(uri)
+        return MimeTypeMap.getSingleton().getExtensionFromMimeType(mime)
+            ?: uri.lastPathSegment?.substringAfterLast('.', "")?.takeIf { it.length in 1..4 }
+            ?: "png"
     }
 
     // --- WebView --------------------------------------------------------------
@@ -441,7 +565,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Arranca (o asegura) el ttyd de la sesión y carga el WebView con watchdog. */
     private fun connectToSession(session: AgentSession) {
-        LinuxService.start(this, session, projectPath, tmuxSessionFor(session))
+        LinuxService.start(this, session, projectPath, tmuxSessionFor(session), projectName)
         startUrlWatcher()
         showLoading()
         pageReady = false
@@ -522,6 +646,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        setNotifyArmed(false)
         // Al volver de segundo plano recargamos el WebView: el websocket de ttyd
         // se reconecta y re-engancha la sesión tmux (no se pierde nada del CLI).
         if (wasPaused) {
@@ -535,8 +660,30 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         wasPaused = true
+        setNotifyArmed(true)
         liveHandler.removeCallbacks(liveRunnable)
         super.onPause()
+    }
+
+    /**
+     * Arma o desarma los avisos del agente (B1). El script `agent-notify` del guest
+     * solo escribe en la cola si existe esta bandera, así que con la app delante no
+     * se notifica nada. Al volver, se limpia el aviso pendiente.
+     */
+    private fun setNotifyArmed(armed: Boolean) {
+        runCatching {
+            val flag = File(
+                File(LinuxEngine.rootfsDir(this), "tmp").apply { mkdirs() },
+                LinuxEngine.NOTIFY_ARMED_FILE,
+            )
+            if (armed) {
+                flag.writeText("1")
+            } else {
+                flag.delete()
+                getSystemService(android.app.NotificationManager::class.java)
+                    ?.cancel(LinuxService.ALERT_NOTIF_ID)
+            }
+        }
     }
 
     /** Actualiza el punto verde de cada CLI según si su ttyd está escuchando. */
@@ -571,33 +718,16 @@ class MainActivity : AppCompatActivity() {
         binding.errorState.installProgress.visibility = View.VISIBLE
         binding.errorState.btnBootstrap.isEnabled = false
         binding.errorState.btnRetry.isEnabled = false
-        // Solo mostramos la cola del log: pintar miles de líneas en un TextView
-        // congela el hilo de UI (relayout O(n²)).
-        val tail = ArrayDeque<String>()
-        val fullLog = StringBuilder()
-        var pending = 0
+        val console = LogConsole(this, binding.errorState.errorMessage)
         thread {
-            val ok = LinuxEngine.installStack(this) { line ->
-                fullLog.appendLine(line)
-                synchronized(tail) {
-                    tail.addLast(line)
-                    while (tail.size > 120) tail.removeFirst()
-                }
-                // Actualiza la UI como mucho cada 4 líneas para no saturarla.
-                if (pending++ % 4 == 0) {
-                    val text = synchronized(tail) { tail.joinToString("\n") }
-                    runOnUiThread { binding.errorState.errorMessage.text = text }
-                }
-            }
+            val ok = LinuxEngine.installStack(this) { console.append(it) }
+            console.flush()
             runOnUiThread {
                 provisioning = false
                 binding.errorState.btnBootstrap.isEnabled = true
                 binding.errorState.btnRetry.isEnabled = true
                 if (ok) connectToSession(currentSession)
-                else {
-                    val text = synchronized(tail) { tail.joinToString("\n") }
-                    showStatus(getString(R.string.install_failed_title), text, mono = true)
-                }
+                else showStatus(getString(R.string.install_failed_title), console.text(), mono = true)
             }
         }
     }
@@ -649,6 +779,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        /** Carpeta (oculta) del proyecto donde se copian las imágenes adjuntas. */
+        private const val ATTACH_DIR = ".attachments"
+
         const val EXTRA_PROJECT_NAME = "extra_project_name"
         const val EXTRA_PROJECT_PATH = "extra_project_path"
         const val EXTRA_PROJECT_AGENT = "extra_project_agent"

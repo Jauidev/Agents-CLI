@@ -35,6 +35,7 @@ class ProjectsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         binding.btnAddProject.setOnClickListener { onAddProjectClicked() }
+        binding.btnEnv.setOnClickListener { startActivity(Intent(this, EnvActivity::class.java)) }
     }
 
     override fun onResume() {

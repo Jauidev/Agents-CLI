@@ -36,4 +36,24 @@
     <style name="Theme.AgentTerminal.Splash" parent="Theme.AgentTerminal">
         <item name="android:windowBackground">@drawable/splash_bg</item>
     </style>
+
+    <!-- Gestor del entorno (D2): títulos de sección y botones de acción. -->
+    <style name="EnvSectionTitle" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">18dp</item>
+        <item name="android:layout_marginBottom">4dp</item>
+        <item name="android:textColor">@color/text_faint</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+    </style>
+
+    <style name="EnvAction" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">8dp</item>
+        <item name="android:paddingVertical">10dp</item>
+        <item name="android:textSize">14sp</item>
+    </style>
 </resources>

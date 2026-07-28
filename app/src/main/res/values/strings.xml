@@ -25,4 +25,31 @@
     <string name="projects_empty">Aún no tienes proyectos.\n\nPulsa \"Abrir carpeta\" para elegir una carpeta y empezar.</string>
     <string name="projects_add">Abrir carpeta…</string>
     <string name="back_to_projects">← Proyectos</string>
+
+    <!-- Gestor del entorno (D2) -->
+    <string name="env_title">Entorno Linux</string>
+    <string name="env_back">←</string>
+    <string name="env_open">Entorno</string>
+    <string name="env_loading">Leyendo el estado del entorno…</string>
+    <string name="env_section_maintenance">Mantenimiento</string>
+    <string name="env_section_notify">Avisos</string>
+    <string name="env_section_log">Salida</string>
+    <string name="env_update_clis">Actualizar los CLIs (npm)</string>
+    <string name="env_install_extras">Instalar extras…</string>
+    <string name="env_clean">Limpiar cachés (apt, npm, /tmp)</string>
+    <string name="env_reprovision">Re-provisionar el entorno</string>
+    <string name="env_reprovision_confirm">Se vuelve a extraer el Linux incluido en la app (~1 min). Tus logins de los CLIs se conservan, pero lo que hayas instalado a mano en el entorno se pierde. Las sesiones abiertas se cierran.</string>
+    <string name="env_idle_notify">Avisar cuando el agente se queda en silencio</string>
+    <string name="env_idle_notify_hint">Cubre a Gemini CLI y a cualquier shell, que no tienen aviso propio. Claude Code y Codex avisan por su cuenta y no dependen de esto. Solo actúa con la app en segundo plano.</string>
+    <string name="env_foreground_warning">Deja la app en primer plano mientras dure una instalación: Android mata los procesos largos del entorno si la mandas al fondo.</string>
+    <string name="env_extras_title">¿Qué quieres instalar?</string>
+    <string name="env_busy">Ya hay una tarea en marcha.</string>
+
+    <!-- Explorador y editor de archivos (C2) -->
+    <string name="files_open">Archivos del proyecto</string>
+    <string name="editor_save">Guardar</string>
+    <string name="editor_discard">Descartar</string>
+    <string name="editor_hint">(archivo vacío)</string>
+    <string name="editor_unsaved_title">Cambios sin guardar</string>
+    <string name="editor_unsaved_msg">Has editado el archivo y no lo has guardado. ¿Qué hago?</string>
 </resources>
