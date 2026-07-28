@@ -1,5 +1,11 @@
 # Ideas / backlog de features
 
+> **Ya implementadas** (28/07/2026): A3 adjuntar imágenes, B1 notificaciones del
+> agente, C2 editor de archivos, D2 gestor del entorno, E1 multi-ventana tmux.
+> Siguen pendientes: A1 dictado por voz, A2 snippets, A4 share target, B2
+> portapapeles/salida, C1 preview de dev server, D1 cuentas, D3 claves SSH,
+> D4 backup, E2 historial.
+
 > Lluvia de ideas de posibles features para Agent Terminal, con prioridad y
 > esfuerzo estimado. NO incluye lo ya planificado en otros docs (mejora de
 > interfaz → `DESIGN-UI.md`; modo proyectos → `DESIGN-UI.md` §Fase 4; selector de
